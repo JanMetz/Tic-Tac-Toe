@@ -11,6 +11,7 @@ let gDrawingContext;
 
 let gPieces;
 let gGameInProgress;
+let gMoveEnabled;
 
 function Cell(row, column, type) {
     this.row = row;
@@ -40,7 +41,10 @@ function getCursorPosition(e) {
     return new Cell(Math.floor(y/kPieceHeight), Math.floor(x/kPieceWidth), gCurrentPieceType);
 }
 
-function gameOnClick(e) {
+async function gameOnClick(e) {
+    if (!gMoveEnabled)
+        return;
+
     let cell = getCursorPosition(e);
 
     if (cell == null)
@@ -52,48 +56,21 @@ function gameOnClick(e) {
         }
     }
 
-    gPieces.push(cell);
-
-    if (gCurrentPieceType === 'o')
-        gCurrentPieceType = 'x';
-    else
-        gCurrentPieceType = 'o';
-
-    drawBoard();
-
-    let whoWonMsg = whoWon(cell)
-    if (whoWonMsg != null)
-        endGame(whoWonMsg);
+    await sendPieceRequest(cell);
 }
 
-function whoWon(piece) {
-    let horizontal = 0;
-    let vertical = 0;
-    let across = 0;
+function setMoveEnabled(val){
+    gMoveEnabled = val;
+}
 
-    for (let i = 0; i < gPieces.length; i++) {
-        if (gPieces[i].type === piece.type) {
-            if (gPieces[i].row === piece.row) {
-                horizontal++;
-            }
+function placePiece(piece) {
+    gPieces.push(piece);
 
-            if (gPieces[i].column === piece.column) {
-                vertical++;
-            }
+    drawBoard();
+}
 
-            if (gPieces[i].column === gPieces[i].row) {
-                across++;
-            }
-        }
-    }
-
-    if (horizontal === kBoardWidth || vertical === kBoardHeight || across === kBoardWidth)
-        return "Player " + piece.type + " won";
-
-    if (gPieces.length === kBoardWidth * kBoardHeight)
-        return "Draw";
-
-    return null;
+function assignPieceType(symbol){
+    gCurrentPieceType = symbol
 }
 
 function drawBoard() {
