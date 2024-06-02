@@ -6,7 +6,6 @@ codes:
     A) sent by client:
         254 - reconnect
         246 - new connection
-        222 - ACK
         110 - piece request
 
     B) sent by server:
@@ -99,24 +98,6 @@ async function onMessage(e) {
                 break;
             }
     }
-
-    await sendAck(e.data);
-}
-
-async function sendAck(buffer) {
-    const oldDv = new DataView(buffer);
-
-    let expanded_buffer = new ArrayBuffer(buffer.byteLength + 1);
-    const newDv = new DataView(expanded_buffer);
-    newDv.setUint8(0, 222); //clients ACK
-
-    for (let i = 0; i < buffer.byteLength; i++)
-        newDv.setUint8(i + 1, oldDv.getUint8(i));
-
-    for (let i = 0; i < 3; i++) {
-        websocket.send(expanded_buffer);
-        await new Promise(r => setTimeout(r, 100));
-    }
 }
 
 function onClose(e){
@@ -143,6 +124,8 @@ async function sendPieceRequest(piece){
         websocket.send(buffer);
         await new Promise(r => setTimeout(r, 100));
     }
+
+    setMoveEnabled(false);
 }
 
 function onError(){

@@ -12,11 +12,8 @@ async def handle_client(websocket, _):
     try:
         while True:
             msg_arr = unpackMessage(await websocket.recv())
-            print(f'Received: {debugMsg(msg_arr)} {msg_arr}')
 
-            if msg_arr[-1] == 222:  # ACK
-                pass
-            elif msg_arr[-1] == 110:  # new piece request
+            if msg_arr[-1] == 110:  # new piece request
                 await handleNewPieceRequest(msg_arr, websocket, game_id)
             elif msg_arr[-1] == 246:  # new connection
                 game_id = await handleNewClient(websocket)
@@ -42,27 +39,25 @@ async def handleReconnect(websocket, msg_arr):
                 break
 
         if piece_type is None:
-            await sendTillACK(websocket, [229])  # invalid game id
-        else:
-            await sendTillACK(websocket, [encodePieceType(piece_type), 113])  # piece type assignment
-            if whoseMove(game_id) == piece_type:
-                await sendTillACK(websocket, [225])  # move time
+            await websocket.send(packMessage([229]))  # invalid game id
+        elif whoseMove(game_id) == piece_type:
+            await websocket.send(packMessage([225]))  # move time
     else:
-        await sendTillACK(websocket, [229])  # invalid game id
+        await websocket.send(packMessage([229]))  # invalid game id
 
 
 async def handleNewClient(websocket):
     if len(games) != 0 and len(players[games[-1]]) < 2:
         game_id = games[-1]
         players[game_id].append(websocket)
-        await sendTillACK(websocket, [encodePieceType('x'), 113])  # piece type assignment
-        await sendTillACK(websocket, [225])  # move time
+        await websocket.send(packMessage([encodePieceType('x'), 113]))  # piece type assignment
+        await websocket.send(packMessage([225]))  # move time
     else:
         game_id = generateGameId()
         setupNewGame(game_id, websocket)
-        await sendTillACK(websocket, [encodePieceType('o'), 113])  # piece type assignment
+        await websocket.send(packMessage([encodePieceType('o'), 113]))  # piece type assignment
 
-    await sendTillACK(websocket, [game_id & 255, game_id >> 8,  227])  # game id
+    await websocket.send(packMessage([game_id & 255, game_id >> 8,  227]))  # game id
 
     return game_id
 
@@ -72,9 +67,10 @@ async def handleNewPieceRequest(msg_arr, player_socket, game_id):
     if canPlacePiece(piece, game_id):
         pieces[game_id].append(piece)
         msg_arr[3] = 111
+        packed = packMessage(msg_arr)
 
         for player in players[game_id]:
-            await sendTillACK(player, msg_arr)  # new piece
+            await player.send(packed)  # new piece
 
         if canContinueGame(game_id):
             if len(players[game_id]) == 2:
@@ -83,12 +79,12 @@ async def handleNewPieceRequest(msg_arr, player_socket, game_id):
                 else:
                     other_player = players[game_id][0]
 
-                await sendTillACK(other_player, [225])  # move time
+                await other_player.send(packMessage([225]))  # move time
         else:
             for player in players[game_id]:
-                await sendTillACK(player, [whoWon(piece, game_id), 223])  # game end
+                await player.send(packMessage([whoWon(piece, game_id), 223]))  # game end
     else:
-        await sendTillACK(player_socket, [225])  # move time
+        await player_socket.send(packMessage([225]))  # move time
 
 
 if __name__ == '__main__':
