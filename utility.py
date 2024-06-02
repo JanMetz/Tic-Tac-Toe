@@ -1,7 +1,5 @@
-import asyncio
 
-
-def unpackMessage(payload):
+def unpackMessage(payload):  # turns bytes object to an array of ints treating each set of 8 bits as a different number
     decimal_number = int.from_bytes(payload, byteorder='big', signed=False)
 
     translated = []
@@ -12,7 +10,7 @@ def unpackMessage(payload):
     return translated
 
 
-def packMessage(message):
+def packMessage(message):  # turns array of ints into a bytes object making each number into next set of 8 bits
     packed = 0
     for idx, decimal in enumerate(message):
         packed += decimal << (idx * 8)
@@ -25,6 +23,17 @@ def encodePieceType(piece_type):
         return 0
     else:
         return 1
+
+
+def decodePieceType(piece_type):
+    if piece_type == 0:
+        return 'o'
+    else:
+        return 'x'
+
+
+def areIdenticalSocks(addr1, addr2):
+    return addr1.remote_address[0] == addr2.remote_address[0]
 
 
 def debugMsg(msg):
@@ -47,4 +56,5 @@ def debugMsg(msg):
         return 'game id'
     elif msg[-1] == 229:
         return 'invalid game id error'
-
+    elif msg[-1] == 231:
+        return 'reconnect successful'

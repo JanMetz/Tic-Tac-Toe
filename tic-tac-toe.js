@@ -57,13 +57,21 @@ async function gameOnClick(e) {
     }
 
     await sendPieceRequest(cell);
+     document.getElementById('msg_box').innerHTML = 'Wait for opponents move...';
 }
 
 function setMoveEnabled(val){
     gMoveEnabled = val;
+    document.getElementById('msg_box').innerHTML = 'Your move!';
 }
 
 function placePiece(piece) {
+    for (let i = 0; i < gPieces.length; i++) {
+        if ((gPieces[i].row === piece.row) && (gPieces[i].column === piece.column)) {
+            return;
+        }
+    }
+
     gPieces.push(piece);
 
     drawBoard();
@@ -75,7 +83,7 @@ function assignPieceType(symbol){
 }
 
 function assignGameId(game_id){
-    localStorage['game_id'] = game_id;
+    localStorage['game.id'] = game_id;
 }
 
 function drawBoard() {
@@ -190,7 +198,6 @@ function resumeGame() {
 function newGame() {
     gPieces = [];
     gGameInProgress = true;
-    gCurrentPieceType = 'x';
     drawBoard();
 }
 
@@ -198,7 +205,7 @@ function endGame(whoWonMsg) {
     gGameInProgress = false;
     localStorage.clear();
     gCanvasElement.removeEventListener("click", gameOnClick, false);
-    alert("Game over! " + whoWonMsg);
+    document.getElementById('msg_box').innerHTML = "Game over! " + whoWonMsg;
 }
 
 function initGame(canvasElement) {

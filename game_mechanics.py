@@ -1,11 +1,10 @@
 import uuid
 
-from utility import encodePieceType
+from utility import encodePieceType, decodePieceType
 
-# Store all connected clients
 pieces = dict([])  # key is game id, value is an array of all the pieces placed in this game
 players = dict([])  # key is game id, value is an array of all the players of this game
-games = []
+games = []  # stores game_ids
 
 
 class Piece:
@@ -16,16 +15,7 @@ class Piece:
     def __init__(self, msg):
         self.row = msg[2]
         self.column = msg[1]
-        self.type = msg[0]
-
-
-class Player:
-    socket = None
-    piece_type = None
-
-    def __init__(self, socket, piece_type):
-        self.socket = socket
-        self.piece_type = piece_type
+        self.type = decodePieceType(msg[0])
 
 
 def canPlacePiece(new_piece, game_id):
@@ -35,14 +25,11 @@ def canPlacePiece(new_piece, game_id):
     return True
 
 
-def canContinueGame(game_id):
-    return len(pieces[game_id]) != 9  # todo change the magic number?
-
-
 def whoWon(new_piece, game_id):
     horizontal = 0
     vertical = 0
-    across = 0
+    across_down = 0
+    across_up = 0
 
     for piece in pieces[game_id]:
         if piece.type == new_piece.type:
@@ -53,10 +40,17 @@ def whoWon(new_piece, game_id):
                 vertical += 1
 
             if piece.column == piece.row:
-                across += 1
+                across_down += 1
 
-    if horizontal == 3 or vertical == 3 or across == 3:
-        return encodePieceType(new_piece.type)
+            if piece.column == (3 - piece.row):
+                across_up += 1
+
+    if horizontal == 3 or vertical == 3 or across_down == 3 or across_up == 3:
+        return encodePieceType(new_piece.type)  # new_piece.type is a winner
+    elif len(pieces[game_id]) == 9:
+        return 2  # draw
+    else:
+        return 3  # no winners yet
 
 
 def whoseMove(game_id):
@@ -69,7 +63,7 @@ def whoseMove(game_id):
         elif piece.type == 'o':
             o_cnt += 1
 
-    if x_cnt < o_cnt:
+    if x_cnt <= o_cnt:
         return 'x'
     else:
         return 'o'
@@ -86,3 +80,16 @@ def setupNewGame(game_id, websocket):
     games.append(game_id)
     pieces[game_id] = []
     players[game_id] = [websocket]
+
+
+def getOtherPlayer(game_id, player1):
+    if players[game_id][0] == player1:
+        return players[game_id][1]
+    else:
+        return players[game_id][0]
+
+
+def cleanupGame(game_id):
+    games.remove(game_id)
+    players.pop(game_id)
+    pieces.pop(game_id)

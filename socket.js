@@ -1,5 +1,6 @@
 let websocket;
 let pieceMsgDelivered;
+let openMsgDelivered;
 
 /*
 codes:
@@ -15,39 +16,49 @@ codes:
         225 - move time
         227 - game id
         229 - invalid game id error
+        231 - reconnect successful
 */
 
 function initSocket() {
         pieceMsgDelivered = false;
+        openMsgDelivered = false;
+
         websocket = new WebSocket("ws://127.0.0.1:8000");
         websocket.binaryType = "arraybuffer";
-        websocket.onopen = function(e) { onOpen(e) };
+        websocket.onopen = function(e) { onOpen(e).then(_ => {}) };
         websocket.onclose = function(e) { onClose(e) };
-        websocket.onmessage = function(e) { onMessage(e) };
+        websocket.onmessage = function(e) { onMessage(e).then(_ => {}) };
         websocket.onerror = function(e) { onError(e) };
 }
 
-function onOpen(e) {
-    let buffer = new ArrayBuffer(3);
+async function onOpen(_) {
+    let buffer = new ArrayBuffer(4);
     const dv = new DataView(buffer);
 
     if (localStorage.getItem('game.id') !== null) {
         dv.setUint8(0, 254);  // reconnect
         dv.setUint16(1, parseInt(localStorage['game.id']));
+        encodeType(dv, 3, localStorage['game.pieceType']);
     }
     else {
         dv.setUint8(0, 246);  // new connection
         dv.setUint16(1, 0);
+        dv.setUint8(3, 0);
     }
 
-    websocket.send(buffer);
+    openMsgDelivered = false;
+
+    while (!openMsgDelivered){
+        websocket.send(buffer);
+        await new Promise(r => setTimeout(r, 100));
+    }
 }
 
 function decodeType(dv, offset){
     if (dv.getUint8(offset) === 0)
             return 'o';
-        else if (dv.getUint8(offset) === 1)
-            return 'x';
+    else if (dv.getUint8(offset) === 1)
+        return 'x';
 }
 
 async function onMessage(e) {
@@ -61,46 +72,70 @@ async function onMessage(e) {
 
             pieceMsgDelivered = true;
             placePiece(new Cell(row, column, type));
+            await sendAck(e.data);
             break;
         }
 
         case 113: { //piece type assignment
-                assignPieceType(decodeType(dv, 1));
-                break;
-            }
+            assignPieceType(decodeType(dv, 1));
+            break;
+        }
 
         case 223: { //game over
-                if (dv.getUint8(1) === 0)
-                    endGame("Player O won!");
-                else if (dv.getUint8(1) === 1)
-                    endGame("Player X won!");
-                else if (dv.getUint8(1) === 2)
-                    endGame("Draw!");
+            if (dv.getUint8(1) === 0)
+                endGame("Player O won!");
+            else if (dv.getUint8(1) === 1)
+                endGame("Player X won!");
+            else if (dv.getUint8(1) === 2)
+                endGame("Draw!");
 
-                break;
-            }
+            await sendAck(e.data);
+            break;
+        }
 
         case 225: { //move time
-                setMoveEnabled(true);
-                pieceMsgDelivered = true;
-                alert('Your move!');
-                break;
-            }
+            setMoveEnabled(true);
+            pieceMsgDelivered = true;
+            await sendAck(e.data);
+            break;
+        }
 
         case 227: { //game id
-                assignGameId(dv.getUint16(1));
-                break;
-            }
+            openMsgDelivered = true;
+            assignGameId(dv.getUint16(1));
+            break;
+        }
 
         case 229: { //invalid game id error
-                localStorage.removeItem('game.id')
-                alert('Refresh site!');
-                break;
-            }
+            openMsgDelivered = true;
+            localStorage.clear();
+            location.reload();
+            break;
+        }
+
+        case 231: {  //reconnect successful
+            openMsgDelivered = true;
+            if (dv.getUint8(1) === 1)
+                 setMoveEnabled(true);
+            break;
+        }
     }
 }
 
-function onClose(e){
+async function sendAck(buffer) {
+    const oldDv = new DataView(buffer);
+
+    let expanded_buffer = new ArrayBuffer(buffer.byteLength + 1);
+    const newDv = new DataView(expanded_buffer);
+    newDv.setUint8(0, 222); //clients ACK
+
+    for (let i = 0; i < buffer.byteLength; i++)
+        newDv.setUint8(i + 1, oldDv.getUint8(i));
+
+    websocket.send(expanded_buffer);
+}
+
+function onClose(_){
     console.log("Close");
 }
 
@@ -119,13 +154,12 @@ async function sendPieceRequest(piece){
     dv.setUint8(2, piece.column);
     encodeType(dv, 3, piece.type);
     pieceMsgDelivered = false;
+    setMoveEnabled(false);
 
     while (!pieceMsgDelivered) {
         websocket.send(buffer);
         await new Promise(r => setTimeout(r, 100));
     }
-
-    setMoveEnabled(false);
 }
 
 function onError(){
