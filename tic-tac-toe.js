@@ -5,7 +5,7 @@ let kPieceHeight= 50;
 let kPixelWidth = 1 + (kBoardWidth * kPieceWidth);
 let kPixelHeight= 1 + (kBoardHeight * kPieceHeight);
 
-let gCurrentPieceType;
+let gPieceType;
 let gCanvasElement;
 let gDrawingContext;
 
@@ -38,7 +38,7 @@ function getCursorPosition(e) {
     if ((x > kBoardWidth * kPieceWidth) || (y >  kBoardHeight * kPieceHeight))
         return null
 
-    return new Cell(Math.floor(y/kPieceHeight), Math.floor(x/kPieceWidth), gCurrentPieceType);
+    return new Cell(Math.floor(y/kPieceHeight), Math.floor(x/kPieceWidth), gPieceType);
 }
 
 async function gameOnClick(e) {
@@ -70,7 +70,12 @@ function placePiece(piece) {
 }
 
 function assignPieceType(symbol){
-    gCurrentPieceType = symbol
+    localStorage["game.pieceType"] = symbol;
+    gPieceType = symbol;
+}
+
+function assignGameId(game_id){
+    localStorage['game_id'] = game_id;
 }
 
 function drawBoard() {
@@ -154,7 +159,7 @@ function saveGameState() {
         localStorage["game.piece." + i + ".type"] = gPieces[i].type;
     }
 
-    localStorage["game.currentPieceType"] = gCurrentPieceType;
+    localStorage["game.pieceType"] = gPieceType;
     localStorage["game.piecesNum"] = gPieces.length;
 }
 
@@ -176,7 +181,7 @@ function resumeGame() {
         gPieces[i] = new Cell(row, column, type);
     }
 
-    gCurrentPieceType = localStorage["game.currentPieceType"];
+    gPieceType = localStorage["game.pieceType"];
     drawBoard();
 
     return true;

@@ -53,61 +53,68 @@ function decodeType(dv, offset){
 
 async function onMessage(e) {
     const dv = new DataView(e.data);
-    if (dv.getUint8(0) === 111) { //new piece information
-        let row = dv.getUint8( 1);
-        let column = dv.getUint8( 2);
-        let type = decodeType(dv,   3)
 
-        pieceMsgDelivered = true;
-        placePiece(new Cell(row, column, type));
-        await sendAck(e.data);
+    switch (dv.getUint8(0)) {
+        case 111: { //new piece information
+            let row = dv.getUint8(1);
+            let column = dv.getUint8(2);
+            let type = decodeType(dv, 3)
+
+            pieceMsgDelivered = true;
+            placePiece(new Cell(row, column, type));
+            break;
+        }
+
+        case 113: { //piece type assignment
+                assignPieceType(decodeType(dv, 1));
+                break;
+            }
+
+        case 223: { //game over
+                if (dv.getUint8(1) === 0)
+                    endGame("Player O won!");
+                else if (dv.getUint8(1) === 1)
+                    endGame("Player X won!");
+                else if (dv.getUint8(1) === 2)
+                    endGame("Draw!");
+
+                break;
+            }
+
+        case 225: { //move time
+                setMoveEnabled(true);
+                pieceMsgDelivered = true;
+                alert('Your move!');
+                break;
+            }
+
+        case 227: { //game id
+                assignGameId(dv.getUint16(1));
+                break;
+            }
+
+        case 229: { //invalid game id error
+                localStorage.removeItem('game.id')
+                alert('Refresh site!');
+                break;
+            }
     }
 
-    if (dv.getUint8(0) === 113) { //piece type assignment
-        assignPieceType(decodeType(dv,   1));
-
-        await sendAck(e.data);
-    }
-
-    if (dv.getUint8(0) === 223) { //game over
-        if (dv.getUint8( 1) === 0)
-            endGame("Player O won!");
-        else if (dv.getUint8( 1) === 1)
-            endGame("Player X won!");
-        else if (dv.getUint8(1) === 2)
-            endGame("Draw!");
-
-        await sendAck(e.data);
-    }
-
-    if (dv.getUint8(0) === 225) { //move time
-        setMoveEnabled(true);
-        pieceMsgDelivered = true;
-        alert('Your move!');
-
-        await sendAck(e.data);
-    }
-
-     if (dv.getUint8(0) === 227) { //game id
-        localStorage['game_id'] = dv.getUint16(1);
-
-        await sendAck(e.data);
-    }
-
-     if (dv.getUint8(0) === 229) { //invalid game id error
-        localStorage.removeItem('game.id')
-
-        await sendAck(e.data);
-        alert('Refresh site!');
-     }
+    await sendAck(e.data);
 }
 
 async function sendAck(buffer) {
-    const dv = new DataView(buffer);
-    dv.setUint8(0, 222); //clients ACK
+    const oldDv = new DataView(buffer);
+
+    let expanded_buffer = new ArrayBuffer(buffer.byteLength + 1);
+    const newDv = new DataView(expanded_buffer);
+    newDv.setUint8(0, 222); //clients ACK
+
+    for (let i = 0; i < buffer.byteLength; i++)
+        newDv.setUint8(i + 1, oldDv.getUint8(i));
 
     for (let i = 0; i < 3; i++) {
-        websocket.send(buffer);
+        websocket.send(expanded_buffer);
         await new Promise(r => setTimeout(r, 100));
     }
 }

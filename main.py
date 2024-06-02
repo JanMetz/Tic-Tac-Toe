@@ -71,8 +71,9 @@ async def handleNewPieceRequest(msg_arr, player_socket, game_id):
     piece = Piece(msg_arr)
     if canPlacePiece(piece, game_id):
         pieces[game_id].append(piece)
+        msg_arr[3] = 111
+
         for player in players[game_id]:
-            msg_arr[3] = 111
             await sendTillACK(player, msg_arr)  # new piece
 
         if canContinueGame(game_id):

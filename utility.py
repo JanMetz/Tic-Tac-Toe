@@ -6,10 +6,11 @@ async def sendTillACK(socket, msg_arr):
     while True:
         print(f'Sending: {debugMsg(msg_arr)} {msg_arr}')
         await socket.send(packed)
-        async with asyncio.timeout(200):
+        break
+        '''async with asyncio.timeout(200):
             received = unpackMessage(await socket.recv())
-            if received[-1] == 222 and msg_arr[:-1] == received[:-1]:  # ACK
-                break
+            if received[-1] == 222 and msg_arr == received[:-1]:  # ACK
+                break'''
 
 
 def unpackMessage(payload):
