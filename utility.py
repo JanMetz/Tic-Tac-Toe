@@ -32,6 +32,7 @@ def decodePieceType(piece_type):
         return 'x'
 
 
+# compares addresses of the socket, omits port number
 def areIdenticalSocks(addr1, addr2):
     return addr1.remote_address[0] == addr2.remote_address[0]
 

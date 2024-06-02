@@ -115,8 +115,7 @@ async function onMessage(e) {
 
         case 231: {  //reconnect successful
             openMsgDelivered = true;
-            if (dv.getUint8(1) === 1)
-                 setMoveEnabled(true);
+            setMoveEnabled(dv.getUint8(1) === 1);
             break;
         }
     }

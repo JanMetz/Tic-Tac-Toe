@@ -6,9 +6,9 @@ from game_mechanics import *
 
 
 class UnconfirmedMsg:
-    msg_arr = None
-    packed = None
-    socket = None
+    msg_arr = None  # array of uint16
+    packed = None  # bytes object
+    socket = None  # websocket object
 
     def __init__(self, socket, msg_arr, packed):
         self.msg_arr = msg_arr
@@ -16,7 +16,7 @@ class UnconfirmedMsg:
         self.packed = packed
 
 
-unconfirmed_msgs = dict([])  # key is game id, value is an array of UnconfirmedMsg to keep track of ACK
+unconfirmed_msgs = dict([])  # key is game id, value is an array of UnconfirmedMsg objects
 
 
 async def handleConnection(websocket, _):
@@ -30,7 +30,7 @@ async def handleConnection(websocket, _):
                 msg_arr = unpackMessage(await websocket.recv())
 
                 if msg_arr[-1] == 222:  # ACK
-                    await handleACK(msg_arr, game_id, websocket)
+                    handleACK(msg_arr, game_id, websocket)
                 elif msg_arr[-1] == 110:  # new piece request
                     await handleNewPieceRequest(msg_arr, websocket, game_id)
                 elif msg_arr[-1] == 246:  # new connection
@@ -56,8 +56,11 @@ async def retransmitMsgs(game_id):
         await socket.send(unconfirmed_msg.packed)
 
 
-# ACK needed as response for new piece, game over and move time
-async def handleACK(msg_arr, game_id, socket):
+# ACK needed as response for new piece, game over and move time communicates
+def handleACK(msg_arr, game_id, socket):
+    if game_id not in unconfirmed_msgs:
+        return
+
     idxs_to_pop = []
     for i in range(len(unconfirmed_msgs[game_id])):
         ucnmsg = unconfirmed_msgs[game_id][i]
@@ -66,37 +69,50 @@ async def handleACK(msg_arr, game_id, socket):
 
     for i in range(len(idxs_to_pop)):
         idx = idxs_to_pop[i] - i
-        # if msg_arr[-2] == 223:  # todo post game end cleanup
-        #    cleanupGame(game_id)
+        if msg_arr[-2] == 223:  # game over
+            removePlayer(game_id, socket)
 
-        del unconfirmed_msgs[game_id][idx]
+        if game_id in unconfirmed_msgs:
+            del unconfirmed_msgs[game_id][idx]
+
+
+def removePlayer(game_id, socket):
+    if areIdenticalSocks(players[game_id][0], socket):
+        players[game_id].pop(0)
+    else:
+        players[game_id].pop(1)
+
+    if len(players[game_id]) == 0:
+        players.pop(game_id)
+        games.remove(game_id)
+        unconfirmed_msgs.pop(game_id)
 
 
 # need to update sock info because it will most likely use different port after reconnect
-def updateSockInUnconfirmedMsgs(game_id, socket):
+def updateSockAfterReconnect(game_id, socket):
     for i in range(len(unconfirmed_msgs[game_id])):
         ucnmsg = unconfirmed_msgs[game_id][i]
         if areIdenticalSocks(ucnmsg.socket, socket):
             unconfirmed_msgs[game_id][i].socket = socket
+
+    for i in range(len(players[game_id])):
+        player = players[game_id][i]
+
+        if areIdenticalSocks(player, socket):
+            players[game_id][i] = socket
+            return True
+
+    return False
 
 
 async def handleClientsReconnect(websocket, msg_arr):
     game_id = msg_arr[2] << 8 | msg_arr[1]
 
     if game_id in games:
-        found_player = False
-        for i in range(len(players[game_id])):
-            player = players[game_id][i]
-
-            if areIdenticalSocks(player, websocket):
-                players[game_id][i] = websocket
-                found_player = True
-                break
-
-        if not found_player:
+        if not updateSockAfterReconnect(game_id, websocket):
             await websocket.send(packMessage([229]))  # invalid game id
         else:
-            updateSockInUnconfirmedMsgs(game_id, websocket)
+
             if whoseMove(game_id) == decodePieceType(msg_arr[0]):
                 await websocket.send(packMessage([1, 231]))  # reconnect successful + move time
             else:
@@ -134,28 +150,32 @@ async def sendToEverybody(game_id, msg_arr):
 async def handleNewPieceRequest(msg_arr, player_socket, game_id):
     piece = Piece(msg_arr)
 
-    if game_id in games and canPlacePiece(piece, game_id):
-        pieces[game_id].append(piece)
-        msg_arr[3] = 111  # new piece
+    if game_id in games:
+        if canPlacePiece(piece, game_id):
+            pieces[game_id].append(piece)
+            msg_arr[3] = 111  # new piece
 
-        await sendToEverybody(game_id, msg_arr)
+            await sendToEverybody(game_id, msg_arr)
 
-        winner = whoWon(piece, game_id)
-        if winner == 3:  # no one won yet
+            winner = whoWon(piece, game_id)
+            if winner == 3:  # no one won yet
 
-            if len(players[game_id]) == 2:
-                msg = [225]  # move time
-                packed = packMessage(msg)
-                other_player = getOtherPlayer(game_id, player_socket)
-                unconfirmed_msgs[game_id].append(UnconfirmedMsg(other_player, msg, packed))
-                await other_player.send(packed)
-        else:  # game is over
+                if len(players[game_id]) == 2:
+                    msg = [225]  # move time
+                    packed = packMessage(msg)
+                    other_player = getOtherPlayer(game_id, player_socket)
+                    unconfirmed_msgs[game_id].append(UnconfirmedMsg(other_player, msg, packed))
+                    await other_player.send(packed)
+            else:  # game is over
 
-            await sendToEverybody(game_id, [winner, 223])  # game end
+                await sendToEverybody(game_id, [winner, 223])  # game end
+                pieces.pop(game_id)
 
-    else:  # canPlacePiece(piece, game_id)
-        # no need for confirmation - client takes care of it
-        await player_socket.send(packMessage([225]))  # move time
+        else:  # canPlacePiece(piece, game_id)
+            # no need for confirmation - client takes care of it
+            await player_socket.send(packMessage([225]))  # move time
+    else:  # game in games
+        await player_socket.send(packMessage([229]))  # invalid game id
 
 
 if __name__ == '__main__':

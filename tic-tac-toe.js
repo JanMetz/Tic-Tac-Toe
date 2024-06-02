@@ -57,12 +57,17 @@ async function gameOnClick(e) {
     }
 
     await sendPieceRequest(cell);
-     document.getElementById('msg_box').innerHTML = 'Wait for opponents move...';
 }
 
 function setMoveEnabled(val){
     gMoveEnabled = val;
-    document.getElementById('msg_box').innerHTML = 'Your move!';
+
+    if (gGameInProgress) {
+        if (val)
+            document.getElementById('msg_box').innerHTML = 'Your move!';
+        else
+            document.getElementById('msg_box').innerHTML = 'Wait for opponents move...';
+    }
 }
 
 function placePiece(piece) {
@@ -80,6 +85,11 @@ function placePiece(piece) {
 function assignPieceType(symbol){
     localStorage["game.pieceType"] = symbol;
     gPieceType = symbol;
+
+    if (gGameInProgress) {
+        if (symbol === 'o')
+            document.getElementById('msg_box').innerHTML = 'Waiting for opponent to join the game...';
+    }
 }
 
 function assignGameId(game_id){

@@ -2,15 +2,15 @@ import uuid
 
 from utility import encodePieceType, decodePieceType
 
-pieces = dict([])  # key is game id, value is an array of all the pieces placed in this game
-players = dict([])  # key is game id, value is an array of all the players of this game
-games = []  # stores game_ids
+pieces = dict([])  # key is game id (uint16), value is an array of all the pieces (class Piece) placed in this game
+players = dict([])  # key is game id (uint16), value is an array of all the websockets used by the players of this game
+games = []  # stores game_ids (16 bit integer)
 
 
 class Piece:
-    row = None
-    column = None
-    type = None
+    row = None  # uint16
+    column = None  # uint16
+    type = None  # either 'x' or 'o'
 
     def __init__(self, msg):
         self.row = msg[2]
@@ -25,6 +25,7 @@ def canPlacePiece(new_piece, game_id):
     return True
 
 
+# check if newly added piece finished the game
 def whoWon(new_piece, game_id):
     horizontal = 0
     vertical = 0
@@ -42,7 +43,7 @@ def whoWon(new_piece, game_id):
             if piece.column == piece.row:
                 across_down += 1
 
-            if piece.column == (3 - piece.row):
+            if piece.column == (2 - piece.row):
                 across_up += 1
 
     if horizontal == 3 or vertical == 3 or across_down == 3 or across_up == 3:
@@ -87,9 +88,3 @@ def getOtherPlayer(game_id, player1):
         return players[game_id][1]
     else:
         return players[game_id][0]
-
-
-def cleanupGame(game_id):
-    games.remove(game_id)
-    players.pop(game_id)
-    pieces.pop(game_id)
