@@ -8,9 +8,10 @@ codes:
         254 - reconnect
         246 - new connection
         110 - piece request
+        222 - ACK
 
     B) sent by server:
-        111 - piece information
+        111 - new piece information
         113 - piece type assignment
         223 - game over
         225 - move time

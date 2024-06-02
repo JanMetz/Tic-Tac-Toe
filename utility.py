@@ -32,7 +32,7 @@ def decodePieceType(piece_type):
         return 'x'
 
 
-# compares addresses of the socket, omits port number
+# compares addresses of the sockets, omits port numbers
 def areIdenticalSocks(addr1, addr2):
     return addr1.remote_address[0] == addr2.remote_address[0]
 
@@ -44,6 +44,8 @@ def debugMsg(msg):
         return 'new connection'
     elif msg[-1] == 110:
         return 'piece request'
+    elif msg[-1] == 222:
+        return 'ACK'
 
     elif msg[-1] == 111:
         return 'piece information'
